@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Peter Remøy Paulsen",
   "private": true,
   "keywords": [
@@ -10,6 +10,12 @@
     "enableMultiJS": true,
     "resources": {
       "media": [
+        {
+          "type": "bitmap",
+          "name": "IMAGE_MENU_ICON",
+          "file": "menu_icon.png",
+          "menuIcon": true
+        },
         {
           "characterRegex": "[0-9:APM ]",
           "type": "font",
