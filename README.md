@@ -8,8 +8,6 @@
   <img src="docs/emery_screenshot_3.png" width="200" alt="High: 12.4 mmol/L, rising fast, IOB 3.20 U">
 </p>
 
-> **Not a medical device.** Islet shows data that AndroidAPS already has. It can be late, wrong or missing. Don't make treatment decisions from your watch alone. Always check your CGM app and AndroidAPS, and keep your phone's alarms turned on.
-
 ---
 
 ## What it shows
