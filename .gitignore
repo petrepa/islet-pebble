@@ -1,0 +1,7 @@
+build/
+node_modules/
+.lock-waf_*
+*.map
+.pebble-logs.pid
+pebble-logs.txt
+.claude/

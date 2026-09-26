@@ -1,0 +1,72 @@
+[
+  {
+    "type": "heading",
+    "defaultValue": "Islet"
+  },
+  {
+    "type": "toggle",
+    "messageKey": "displaysecs",
+    "label": "Display seconds in time",
+    "defaultValue": false
+  },
+  {
+    "type": "toggle",
+    "messageKey": "viberepeat",
+    "label": "Repeat alert vibrations every 15 minutes",
+    "defaultValue": true
+  },
+  {
+    "type": "toggle",
+    "messageKey": "novibe",
+    "label": "Silence all vibrations",
+    "defaultValue": false
+  },
+  {
+    "type": "toggle",
+    "messageKey": "lightoncharge",
+    "label": "Backlight on when charging",
+    "defaultValue": false
+  },
+  {
+    "type": "heading",
+    "defaultValue": "Glucose colors"
+  },
+  {
+    "type": "color",
+    "messageKey": "colorlow",
+    "defaultValue": "ff0000",
+    "label": "Low",
+    "capabilities": ["COLOR"],
+    "sunlight": true
+  },
+  {
+    "type": "color",
+    "messageKey": "colorok",
+    "defaultValue": "00ff00",
+    "label": "In range",
+    "capabilities": ["COLOR"],
+    "sunlight": true
+  },
+  {
+    "type": "color",
+    "messageKey": "colorhigh",
+    "defaultValue": "00aaff",
+    "label": "High",
+    "capabilities": ["COLOR"],
+    "sunlight": true
+  },
+  {
+    "type": "heading",
+    "defaultValue": "Language / Språk"
+  },
+  {
+    "type": "toggle",
+    "messageKey": "language",
+    "label": "Dato på nynorsk",
+    "defaultValue": false
+  },
+  {
+    "type": "submit",
+    "defaultValue": "Save Settings"
+  }
+]
