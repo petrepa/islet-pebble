@@ -57,7 +57,7 @@ To check it works, open `http://127.0.0.1:28891/sgv.json?count=1` in a browser *
 
 ### 2. Install Islet
 
-Install **Islet** from the Pebble app store in the Pebble app. Or download `islet.pbw` from [Releases](../../releases) and open it with the Pebble app.
+Install **[Islet for AndroidAPS](https://apps.rePebble.com/a5543813bd14472f90ff7542)** from the Pebble app store (search for "Islet" or "AndroidAPS" in the Pebble app). Or download `islet.pbw` from [Releases](../../releases) and open it with the Pebble app.
 
 ### 3. Turn off other senders
 
