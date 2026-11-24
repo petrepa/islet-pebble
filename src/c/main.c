@@ -41,6 +41,8 @@ const char FACE_VERSION[] = "Islet";
 #define SET_COLOR_OK        121
 #define SET_COLOR_HIGH      122
 #define SET_LANGUAGE        123
+#define SET_LIGHT_THEME     124
+#define SET_LARGE_TEXT      125
 
 // -- Layout (Emery 200x228) -----------------------------------------------------
 // Section divider Y positions
@@ -67,6 +69,7 @@ static TextLayer   *s_iob_layer;
 static Layer     *s_time_layer;
 static TextLayer *s_date_layer;
 static GFont      s_time_font = NULL;
+static GFont      s_bg_font   = NULL;   // large glucose digits, loaded on demand
 static char       s_time_str[10] = "00:00";
 
 // Weather / HR
@@ -136,6 +139,13 @@ static bool s_bt_timer_pop = false;
 static bool s_no_vibe     = true;
 static bool s_vibe_repeat = true;
 static bool s_backlight   = false;
+static bool s_light_theme = false;
+static bool s_large_text  = false;
+
+// Theme colours, set by apply_theme()
+static GColor s_fg;     // text and icons
+static GColor s_back;   // background
+static GColor s_dim;    // stale or missing values
 
 // Trend buffer (received, not displayed in this layout)
 static uint8_t  *s_trend_buf = NULL;
@@ -149,48 +159,52 @@ static uint16_t  s_trend_exp = 0;
 static void icon_layer_proc(Layer *layer, GContext *ctx) {
     if (s_arrow_idx < 1 || s_arrow_idx > 7) return;
 
-    graphics_context_set_stroke_color(ctx, GColorWhite);
-    graphics_context_set_stroke_width(ctx, 2);
+    // Points are on a 32x32 grid, scaled to the layer
+    int w = layer_get_bounds(layer).size.w;
+#define P(x, y) GPoint((x) * w / 32, (y) * w / 32)
+    graphics_context_set_stroke_color(ctx, s_fg);
+    graphics_context_set_stroke_width(ctx, w > 32 ? 3 : 2);
 
     switch (s_arrow_idx) {
         case 1: // Double up — two upward chevrons
-            graphics_draw_line(ctx, GPoint(8, 16), GPoint(16, 7));
-            graphics_draw_line(ctx, GPoint(16, 7), GPoint(24, 16));
-            graphics_draw_line(ctx, GPoint(8, 24), GPoint(16, 15));
-            graphics_draw_line(ctx, GPoint(16, 15), GPoint(24, 24));
+            graphics_draw_line(ctx, P(8, 16), P(16, 7));
+            graphics_draw_line(ctx, P(16, 7), P(24, 16));
+            graphics_draw_line(ctx, P(8, 24), P(16, 15));
+            graphics_draw_line(ctx, P(16, 15), P(24, 24));
             break;
         case 2: // Single up — shaft + arrowhead
-            graphics_draw_line(ctx, GPoint(16, 25), GPoint(16, 8));
-            graphics_draw_line(ctx, GPoint(16, 8), GPoint(9, 16));
-            graphics_draw_line(ctx, GPoint(16, 8), GPoint(23, 16));
+            graphics_draw_line(ctx, P(16, 25), P(16, 8));
+            graphics_draw_line(ctx, P(16, 8), P(9, 16));
+            graphics_draw_line(ctx, P(16, 8), P(23, 16));
             break;
         case 3: // Up 45° — diagonal shaft + corner head
-            graphics_draw_line(ctx, GPoint(6, 25), GPoint(25, 6));
-            graphics_draw_line(ctx, GPoint(25, 6), GPoint(25, 14));
-            graphics_draw_line(ctx, GPoint(25, 6), GPoint(17, 6));
+            graphics_draw_line(ctx, P(6, 25), P(25, 6));
+            graphics_draw_line(ctx, P(25, 6), P(25, 14));
+            graphics_draw_line(ctx, P(25, 6), P(17, 6));
             break;
         case 4: // Flat — horizontal shaft + arrowhead
-            graphics_draw_line(ctx, GPoint(5, 16), GPoint(24, 16));
-            graphics_draw_line(ctx, GPoint(24, 16), GPoint(17, 9));
-            graphics_draw_line(ctx, GPoint(24, 16), GPoint(17, 23));
+            graphics_draw_line(ctx, P(5, 16), P(24, 16));
+            graphics_draw_line(ctx, P(24, 16), P(17, 9));
+            graphics_draw_line(ctx, P(24, 16), P(17, 23));
             break;
         case 5: // Down 45° — diagonal shaft + corner head
-            graphics_draw_line(ctx, GPoint(6, 6), GPoint(25, 25));
-            graphics_draw_line(ctx, GPoint(25, 25), GPoint(25, 17));
-            graphics_draw_line(ctx, GPoint(25, 25), GPoint(17, 25));
+            graphics_draw_line(ctx, P(6, 6), P(25, 25));
+            graphics_draw_line(ctx, P(25, 25), P(25, 17));
+            graphics_draw_line(ctx, P(25, 25), P(17, 25));
             break;
         case 6: // Single down — shaft + arrowhead
-            graphics_draw_line(ctx, GPoint(16, 7), GPoint(16, 24));
-            graphics_draw_line(ctx, GPoint(16, 24), GPoint(9, 16));
-            graphics_draw_line(ctx, GPoint(16, 24), GPoint(23, 16));
+            graphics_draw_line(ctx, P(16, 7), P(16, 24));
+            graphics_draw_line(ctx, P(16, 24), P(9, 16));
+            graphics_draw_line(ctx, P(16, 24), P(23, 16));
             break;
         case 7: // Double down — two downward chevrons
-            graphics_draw_line(ctx, GPoint(8, 8), GPoint(16, 17));
-            graphics_draw_line(ctx, GPoint(16, 17), GPoint(24, 8));
-            graphics_draw_line(ctx, GPoint(8, 16), GPoint(16, 25));
-            graphics_draw_line(ctx, GPoint(16, 25), GPoint(24, 16));
+            graphics_draw_line(ctx, P(8, 8), P(16, 17));
+            graphics_draw_line(ctx, P(16, 17), P(24, 8));
+            graphics_draw_line(ctx, P(8, 16), P(16, 25));
+            graphics_draw_line(ctx, P(16, 25), P(24, 16));
             break;
     }
+#undef P
     graphics_context_set_stroke_width(ctx, 1);
 }
 
@@ -224,7 +238,7 @@ static void phone_icon_proc(Layer *layer, GContext *ctx) {
     GRect b = layer_get_bounds(layer);
     int w = b.size.w-4, h = b.size.h-4;
     int x = (b.size.w-w)/2, y = (b.size.h-h)/2;
-    graphics_context_set_stroke_color(ctx, GColorWhite);
+    graphics_context_set_stroke_color(ctx, s_fg);
     // Outline only — no fill
     graphics_draw_round_rect(ctx, GRect(x, y, w, h), 1);
 }
@@ -235,8 +249,8 @@ static void watch_icon_proc(Layer *layer, GContext *ctx) {
     int r  = b.size.w/2 - 4;   // smaller circle
     int sw = 7;                  // wider strap
     int sh = cy - r;
-    graphics_context_set_stroke_color(ctx, GColorWhite);
-    graphics_context_set_fill_color(ctx, GColorWhite);
+    graphics_context_set_stroke_color(ctx, s_fg);
+    graphics_context_set_fill_color(ctx, s_fg);
     if (sh > 0) {
         graphics_fill_rect(ctx, GRect(cx - sw/2, 0, sw, sh), 0, GCornerNone);
         graphics_fill_rect(ctx, GRect(cx - sw/2, cy+r, sw, sh), 0, GCornerNone);
@@ -253,8 +267,8 @@ static void therm_icon_proc(Layer *layer, GContext *ctx) {
     int t_top  = 3;
     int t_h    = bulb_y - t_top;
 
-    graphics_context_set_stroke_color(ctx, GColorWhite);
-    graphics_context_set_fill_color(ctx, GColorWhite);
+    graphics_context_set_stroke_color(ctx, s_fg);
+    graphics_context_set_fill_color(ctx, s_fg);
     // Tube outline
     graphics_draw_round_rect(ctx, GRect(cx-2, t_top, 5, t_h + 2), 1);
     // Bulb outline
@@ -270,8 +284,8 @@ static void hr_layer_proc(Layer *layer, GContext *ctx) {
     int icon_w = b.size.w / 4;
     int text_w = b.size.w - icon_w;
 
-    graphics_context_set_fill_color(ctx, GColorWhite);
-    graphics_context_set_stroke_color(ctx, GColorWhite);
+    graphics_context_set_fill_color(ctx, s_fg);
+    graphics_context_set_stroke_color(ctx, s_fg);
 
     // BPM text in left 3/4
     static char buf[12];
@@ -297,7 +311,7 @@ static void battery_handler(BatteryChargeState state) {
     snprintf(buf, sizeof(buf), "%d%%", state.charge_percent);
     if (!s_watch_bat) return;
 
-    text_layer_set_text_color(s_watch_bat, GColorWhite);
+    text_layer_set_text_color(s_watch_bat, s_fg);
     text_layer_set_text(s_watch_bat, buf);
     if (s_backlight) light_enable(state.is_plugged);
 }
@@ -306,6 +320,7 @@ static void battery_handler(BatteryChargeState state) {
 // Bluetooth
 // ============================================================================
 static void bt_timer_cb(void *data);
+static void refresh_all(void);
 
 static void bt_handler(bool connected) {
     if (!connected) {
@@ -324,7 +339,7 @@ static void bt_handler(bool connected) {
     } else {
         s_bt_alert = false;
         if (s_bt_timer == NULL) s_bt_timer_pop = false;
-        if (s_delta_layer) text_layer_set_text_color(s_delta_layer, GColorWhite);
+        if (s_delta_layer) text_layer_set_text_color(s_delta_layer, s_fg);
     }
 }
 
@@ -344,8 +359,20 @@ static void update_icon(void) {
     if (s_icon_layer) layer_mark_dirty(s_icon_layer);
 }
 
+// On a light background, step bright colours (like the default green) down
+// until they are dark enough to read on white
+static GColor readable(GColor c) {
+    if (!s_light_theme) return c;
+    while (2 * c.r + 5 * c.g + c.b > 12) {
+        if (c.r) c.r--;
+        if (c.g) c.g--;
+        if (c.b) c.b--;
+    }
+    return c;
+}
+
 // Returns color for BG value: red=low, green=normal, blue=high
-static GColor get_bg_color(void) {
+static GColor bg_range_color(void) {
     if (s_bg_str[0] == '-') return s_color_ok;   // "---" no data — use in-range color
 
     bool is_mmol = false;
@@ -367,6 +394,10 @@ static GColor get_bg_color(void) {
     return s_color_ok;
 }
 
+static GColor get_bg_color(void) {
+    return readable(bg_range_color());
+}
+
 static void update_bg(void) {
     text_layer_set_text(s_bg_layer, s_bg_str);
     text_layer_set_text_color(s_bg_layer, get_bg_color());
@@ -375,7 +406,7 @@ static void update_bg(void) {
 static void update_delta(void) {
     if (!s_bt_ok) return;
     text_layer_set_text(s_delta_layer, s_delta_str);
-    text_layer_set_text_color(s_delta_layer, GColorWhite);
+    text_layer_set_text_color(s_delta_layer, s_fg);
 }
 
 static void update_time_ago(void) {
@@ -398,10 +429,10 @@ static void update_iob(void) {
                  (int32_t)(time(NULL) - s_iob_time) < IOB_STALE_SECS;
     if (fresh) {
         snprintf(buf, sizeof(buf), "IOB %sU", s_iob_str);
-        text_layer_set_text_color(s_iob_layer, GColorWhite);
+        text_layer_set_text_color(s_iob_layer, s_fg);
     } else {
         snprintf(buf, sizeof(buf), "IOB --");
-        text_layer_set_text_color(s_iob_layer, GColorDarkGray);
+        text_layer_set_text_color(s_iob_layer, s_dim);
     }
     text_layer_set_text(s_iob_layer, buf);
 }
@@ -409,7 +440,7 @@ static void update_iob(void) {
 static void update_phone_bat(void) {
     if (strcmp(s_phone_bat_str, " ") == 0) {
         text_layer_set_text(s_phone_bat, "--");
-        text_layer_set_text_color(s_phone_bat, GColorDarkGray);
+        text_layer_set_text_color(s_phone_bat, s_dim);
         return;
     }
     int val = 0;
@@ -421,7 +452,7 @@ static void update_phone_bat(void) {
     static char buf[6];
     snprintf(buf, sizeof(buf), "%d%%", val);
     text_layer_set_text(s_phone_bat, buf);
-    text_layer_set_text_color(s_phone_bat, GColorWhite);
+    text_layer_set_text_color(s_phone_bat, s_fg);
 }
 
 // Each segment of HH:MM:SS drawn at fixed pixel positions to prevent
@@ -429,7 +460,7 @@ static void update_phone_bat(void) {
 // LECO_42_NUMBERS; adjust DW/CW if segments look uneven on the real device.
 static void time_layer_proc(Layer *layer, GContext *ctx) {
     GRect b = layer_get_bounds(layer);
-    graphics_context_set_text_color(ctx, GColorWhite);
+    graphics_context_set_text_color(ctx, s_fg);
 
     if (!s_show_secs) {
         // Normal mode — large Gotham font centered (updates only per-minute)
@@ -715,6 +746,18 @@ static void inbox_received(DictionaryIterator *iter, void *ctx) {
             if (s_bg_layer) text_layer_set_text_color(s_bg_layer, get_bg_color());
             break;
 
+        case SET_LIGHT_THEME:
+            s_light_theme = (t->value->uint8 > 0);
+            persist_write_bool(SET_LIGHT_THEME, s_light_theme);
+            refresh_all();
+            break;
+
+        case SET_LARGE_TEXT:
+            s_large_text = (t->value->uint8 > 0);
+            persist_write_bool(SET_LARGE_TEXT, s_large_text);
+            refresh_all();
+            break;
+
         case SET_LANGUAGE:
             s_lang_nynorsk = (t->value->uint8 > 0);
             persist_write_bool(SET_LANGUAGE, s_lang_nynorsk);
@@ -735,125 +778,95 @@ static void health_handler(HealthEventType event, void *ctx) {
 }
 
 // ============================================================================
-// Window load
+// Layout and theme — both re-applied when the settings change
 // ============================================================================
-static void window_load(Window *window) {
-    Layer *root = window_get_root_layer(window);
+static TextLayer *make_text(Layer *root, GTextAlignment align) {
+    TextLayer *l = text_layer_create(GRect(0, 0, 0, 0));
+    text_layer_set_background_color(l, GColorClear);
+    text_layer_set_text_alignment(l, align);
+    layer_add_child(root, text_layer_get_layer(l));
+    return l;
+}
 
-    // Canvas drawn first — behind everything else
-    s_canvas = layer_create(GRect(0, 0, 200, 228));
-    layer_set_update_proc(s_canvas, canvas_update_proc);
-    layer_add_child(root, s_canvas);
+static Layer *make_layer(Layer *root, LayerUpdateProc proc) {
+    Layer *l = layer_create(GRect(0, 0, 0, 0));
+    layer_set_update_proc(l, proc);
+    layer_add_child(root, l);
+    return l;
+}
 
-    // ── BG section — left/right split, no separator ──────────────────────────
-    // LEFT column (x=3..99): glucose value, center-aligned, full height
-    s_bg_layer = text_layer_create(GRect(3, 4, 96, 60));
-    text_layer_set_background_color(s_bg_layer, GColorClear);
-    text_layer_set_text_color(s_bg_layer, GColorGreen);
-    text_layer_set_font(s_bg_layer, fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD));
-    text_layer_set_text_alignment(s_bg_layer, GTextAlignmentCenter);
-    layer_add_child(root, text_layer_get_layer(s_bg_layer));
+static void place(TextLayer *l, GRect frame, GFont font) {
+    layer_set_frame(text_layer_get_layer(l), frame);
+    text_layer_set_font(l, font);
+}
 
-    // RIGHT column (x=100..196): time ago top-right, arrow centred, delta bottom
-    // Time ago — pinned to top-right corner
-    s_cgmtime_layer = text_layer_create(GRect(100, 4, 93, 14));
-    text_layer_set_background_color(s_cgmtime_layer, GColorClear);
-    text_layer_set_text_color(s_cgmtime_layer, GColorWhite);
-    text_layer_set_font(s_cgmtime_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD));
-    text_layer_set_text_alignment(s_cgmtime_layer, GTextAlignmentRight);
-    layer_add_child(root, text_layer_get_layer(s_cgmtime_layer));
+// Normal: the original layout. Large: wider glucose column with much bigger
+// digits, and the small labels and date one font size up. Time stays as is.
+static void apply_layout(void) {
+    bool L = s_large_text;
+    if (L && !s_bg_font)
+        s_bg_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BG_FONT_64));
 
-    // Trend arrow — centred in right column (column centre x=148, y=34)
-    s_icon_layer = layer_create(GRect(132, 18, 32, 32));
-    layer_set_update_proc(s_icon_layer, icon_layer_proc);
-    layer_add_child(root, s_icon_layer);
+    GFont small = fonts_get_system_font(L ? FONT_KEY_GOTHIC_18_BOLD : FONT_KEY_GOTHIC_14_BOLD);
+    GFont mid   = fonts_get_system_font(L ? FONT_KEY_GOTHIC_24_BOLD : FONT_KEY_GOTHIC_18_BOLD);
+    GFont big   = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
 
-    // Delta — small text at bottom of right column (alerts / BT status)
-    s_delta_layer = text_layer_create(GRect(100, 50, 93, 14));
-    text_layer_set_background_color(s_delta_layer, GColorClear);
-    text_layer_set_text_color(s_delta_layer, GColorWhite);
-    text_layer_set_font(s_delta_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD));
-    text_layer_set_text_alignment(s_delta_layer, GTextAlignmentCenter);
-    layer_add_child(root, text_layer_get_layer(s_delta_layer));
+    // ── BG section: glucose + IOB left, age / arrow / delta right ────────────
+    if (L) {
+        place(s_bg_layer,      GRect(0, -15, 136, 74), s_bg_font);
+        place(s_iob_layer,     GRect(0, 52, 136, 20), small);
+        place(s_cgmtime_layer, GRect(136, 0, 60, 20), small);
+        layer_set_frame(s_icon_layer, GRect(146, 17, 40, 40));
+        place(s_delta_layer,   GRect(136, 52, 60, 20), small);
+        place(s_msg_layer,     GRect(136, 0, 60, 72), small);
+    } else {
+        place(s_bg_layer,      GRect(3, 4, 96, 60),
+              fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD));
+        place(s_iob_layer,     GRect(3, 50, 96, 14), small);
+        place(s_cgmtime_layer, GRect(100, 4, 93, 14), small);
+        layer_set_frame(s_icon_layer, GRect(132, 18, 32, 32));
+        place(s_delta_layer,   GRect(100, 50, 93, 14), small);
+        place(s_msg_layer,     GRect(100, 4, 93, 60),
+              fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
+    }
 
-    // Message overlay — covers full right column for alert text
-    s_msg_layer = text_layer_create(GRect(100, 4, 93, 60));
-    text_layer_set_background_color(s_msg_layer, GColorBlack);
-    text_layer_set_text_color(s_msg_layer, GColorRed);
-    text_layer_set_font(s_msg_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
-    text_layer_set_text_alignment(s_msg_layer, GTextAlignmentCenter);
-    layer_set_hidden((Layer*)s_msg_layer, true);
-    layer_add_child(root, text_layer_get_layer(s_msg_layer));
+    // ── Time and date ────────────────────────────────────────────────────────
+    int ty = L ? 70 : 66;
+    layer_set_frame(s_time_layer, GRect(4, ty, 192, 61));
+    place(s_date_layer, GRect(4, ty + 62, 192, L ? 28 : 22), mid);
 
-    // IOB — small line under the glucose value in the left column
-    s_iob_layer = text_layer_create(GRect(3, 50, 96, 14));
-    text_layer_set_background_color(s_iob_layer, GColorClear);
-    text_layer_set_font(s_iob_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD));
-    text_layer_set_text_alignment(s_iob_layer, GTextAlignmentCenter);
-    layer_add_child(root, text_layer_get_layer(s_iob_layer));
+    // ── Weather / HR, then battery: icon left 1/4, value right 3/4 ───────────
+    // Large mode squeezes these rows a little to make room for the glucose
+    int wy = L ? 161 : 154, wh = L ? 33 : 36;
+    int by = L ? 195 : 191, bh = 33;
+    layer_set_frame(s_therm_icon, GRect(4, wy, 24, wh));
+    place(s_temp_layer, GRect(28, wy, 71, wh), big);
+    layer_set_frame(s_hr_layer, GRect(101, wy, 95, wh));
 
-    // ── Time section (y=68..126) — LECO LCD digits, vertically centred ────────
-    s_time_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_TIME_FONT_60));
-    s_time_layer = layer_create(GRect(4, 66, 192, 61));
-    layer_set_update_proc(s_time_layer, time_layer_proc);
-    layer_add_child(root, s_time_layer);
+    layer_set_frame(s_phone_icon, GRect(4, by, 24, bh));
+    place(s_phone_bat, GRect(28, by, 71, bh), big);
+    place(s_watch_bat, GRect(101, by, 71, bh), big);
+    layer_set_frame(s_watch_icon, GRect(172, by, 24, bh));
+}
 
-    // ── Date section (y=128..151) ────────────────────────────────────────────
-    s_date_layer = text_layer_create(GRect(4, 129, 192, 22));
-    text_layer_set_background_color(s_date_layer, GColorClear);
-    text_layer_set_text_color(s_date_layer, GColorWhite);
-    text_layer_set_font(s_date_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
-    text_layer_set_text_alignment(s_date_layer, GTextAlignmentCenter);
-    layer_add_child(root, text_layer_get_layer(s_date_layer));
+static void apply_theme(void) {
+    s_fg   = s_light_theme ? GColorBlack : GColorWhite;
+    s_back = s_light_theme ? GColorWhite : GColorBlack;
+    s_dim  = s_light_theme ? GColorLightGray : GColorDarkGray;
+    window_set_background_color(s_window, s_back);
 
-    // ── Weather / HR section (y=154..190, 36px) ──────────────────────────────
-    // Each half-cell: icon left 1/4 (24px), value right 3/4 (71px)
-    // Left cell: TEMP
-    s_therm_icon = layer_create(GRect(4, 154, 24, 36));
-    layer_set_update_proc(s_therm_icon, therm_icon_proc);
-    layer_add_child(root, s_therm_icon);
+    TextLayer *plain[] = { s_cgmtime_layer, s_delta_layer, s_date_layer,
+                           s_temp_layer, s_watch_bat };
+    for (unsigned i = 0; i < ARRAY_LENGTH(plain); i++)
+        text_layer_set_text_color(plain[i], s_fg);
+    text_layer_set_background_color(s_msg_layer, s_back);
+    text_layer_set_text_color(s_msg_layer, readable(GColorRed));
+}
 
-    s_temp_layer = text_layer_create(GRect(28, 154, 71, 36));
-    text_layer_set_background_color(s_temp_layer, GColorClear);
-    text_layer_set_text_color(s_temp_layer, GColorWhite);
-    text_layer_set_font(s_temp_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
-    text_layer_set_text_alignment(s_temp_layer, GTextAlignmentCenter);
-    text_layer_set_text(s_temp_layer, s_temp_str);
-    layer_add_child(root, text_layer_get_layer(s_temp_layer));
-
-    // Right cell: HR (icon+text drawn together in proc using 1/4+3/4)
-    s_hr_layer = layer_create(GRect(101, 154, 95, 36));
-    layer_set_update_proc(s_hr_layer, hr_layer_proc);
-    layer_add_child(root, s_hr_layer);
-
-    // ── Battery section (y=191..224, 33px) ───────────────────────────────────
-    // Each half-cell: icon left 1/4 (24px), value right 3/4 (71px)
-    // Left cell: Phone
-    s_phone_icon = layer_create(GRect(4, 191, 24, 33));
-    layer_set_update_proc(s_phone_icon, phone_icon_proc);
-    layer_add_child(root, s_phone_icon);
-
-    s_phone_bat = text_layer_create(GRect(28, 191, 71, 33));
-    text_layer_set_background_color(s_phone_bat, GColorClear);
-    text_layer_set_text_color(s_phone_bat, GColorWhite);
-    text_layer_set_font(s_phone_bat, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
-    text_layer_set_text_alignment(s_phone_bat, GTextAlignmentCenter);
-    layer_add_child(root, text_layer_get_layer(s_phone_bat));
-
-    // Right cell: Watch — value left 3/4, icon right 1/4
-    s_watch_bat = text_layer_create(GRect(101, 191, 71, 33));
-    text_layer_set_background_color(s_watch_bat, GColorClear);
-    text_layer_set_text_color(s_watch_bat, GColorWhite);
-    text_layer_set_font(s_watch_bat, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
-    text_layer_set_text_alignment(s_watch_bat, GTextAlignmentCenter);
-    layer_add_child(root, text_layer_get_layer(s_watch_bat));
-
-    s_watch_icon = layer_create(GRect(172, 191, 24, 33));
-    layer_set_update_proc(s_watch_icon, watch_icon_proc);
-    layer_add_child(root, s_watch_icon);
-
-    // ── Create heart path and initial data load ───────────────────────────────
-    s_heart_path = gpath_create(&HEART_PATH_INFO);
+// Redraw everything with the current layout, theme and data
+static void refresh_all(void) {
+    apply_layout();
+    apply_theme();
 
     update_bg();
     update_icon();
@@ -866,6 +879,47 @@ static void window_load(Window *window) {
 
     time_t now = time(NULL);
     update_time_date(localtime(&now));
+    layer_mark_dirty(window_get_root_layer(s_window));
+}
+
+// ============================================================================
+// Window load
+// ============================================================================
+static void window_load(Window *window) {
+    Layer *root = window_get_root_layer(window);
+
+    // Canvas drawn first — behind everything else
+    s_canvas = layer_create(GRect(0, 0, 200, 228));
+    layer_set_update_proc(s_canvas, canvas_update_proc);
+    layer_add_child(root, s_canvas);
+
+    // Frames and fonts are set in apply_layout(), colours in apply_theme()
+    s_bg_layer      = make_text(root, GTextAlignmentCenter);
+    s_cgmtime_layer = make_text(root, GTextAlignmentRight);
+    s_icon_layer    = make_layer(root, icon_layer_proc);
+    s_delta_layer   = make_text(root, GTextAlignmentCenter);
+    // Message overlay — covers the right column for alert text
+    s_msg_layer     = make_text(root, GTextAlignmentCenter);
+    layer_set_hidden((Layer*)s_msg_layer, true);
+    s_iob_layer     = make_text(root, GTextAlignmentCenter);
+
+    s_time_font  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_TIME_FONT_60));
+    s_time_layer = make_layer(root, time_layer_proc);
+    s_date_layer = make_text(root, GTextAlignmentCenter);
+
+    s_therm_icon = make_layer(root, therm_icon_proc);
+    s_temp_layer = make_text(root, GTextAlignmentCenter);
+    text_layer_set_text(s_temp_layer, s_temp_str);
+    s_hr_layer   = make_layer(root, hr_layer_proc);
+
+    s_phone_icon = make_layer(root, phone_icon_proc);
+    s_phone_bat  = make_text(root, GTextAlignmentCenter);
+    s_watch_bat  = make_text(root, GTextAlignmentCenter);
+    s_watch_icon = make_layer(root, watch_icon_proc);
+
+    s_heart_path = gpath_create(&HEART_PATH_INFO);
+
+    refresh_all();
 }
 
 // ============================================================================
@@ -883,6 +937,7 @@ static void window_unload(Window *window) {
     s_iob_layer = NULL;
     layer_destroy(s_time_layer);
     if (s_time_font) { fonts_unload_custom_font(s_time_font); s_time_font = NULL; }
+    if (s_bg_font)   { fonts_unload_custom_font(s_bg_font);   s_bg_font   = NULL; }
     text_layer_destroy(s_date_layer);
     layer_destroy(s_therm_icon);
     text_layer_destroy(s_temp_layer);
@@ -906,6 +961,8 @@ static void init(void) {
     s_backlight   = persist_exists(SET_LIGHT_ON_CHG)    ? persist_read_bool(SET_LIGHT_ON_CHG) : false;
     s_msg_tmout   = persist_exists(SET_MESSAGE_TIMEOUT) ? (uint32_t)persist_read_int(SET_MESSAGE_TIMEOUT) : 15000;
     s_lang_nynorsk = persist_exists(SET_LANGUAGE) ? persist_read_bool(SET_LANGUAGE) : false;
+    s_light_theme = persist_exists(SET_LIGHT_THEME) ? persist_read_bool(SET_LIGHT_THEME) : false;
+    s_large_text  = persist_exists(SET_LARGE_TEXT)  ? persist_read_bool(SET_LARGE_TEXT)  : false;
     s_color_low  = persist_exists(SET_COLOR_LOW)  ? GColorFromHEX((uint32_t)persist_read_int(SET_COLOR_LOW))  : GColorRed;
     s_color_ok   = persist_exists(SET_COLOR_OK)   ? GColorFromHEX((uint32_t)persist_read_int(SET_COLOR_OK))   : GColorGreen;
     s_color_high = persist_exists(SET_COLOR_HIGH) ? GColorFromHEX((uint32_t)persist_read_int(SET_COLOR_HIGH)) : GColorVividCerulean;
@@ -926,7 +983,6 @@ static void init(void) {
         clock_is_24h_style() ? "%H:%M" : "%l:%M");
 
     s_window = window_create();
-    window_set_background_color(s_window, GColorBlack);
     window_set_window_handlers(s_window, (WindowHandlers){
         .load = window_load, .unload = window_unload
     });
