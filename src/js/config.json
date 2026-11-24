@@ -5,6 +5,18 @@
   },
   {
     "type": "toggle",
+    "messageKey": "lighttheme",
+    "label": "Light background (black text on white)",
+    "defaultValue": false
+  },
+  {
+    "type": "toggle",
+    "messageKey": "largetext",
+    "label": "Larger text",
+    "defaultValue": false
+  },
+  {
+    "type": "toggle",
     "messageKey": "displaysecs",
     "label": "Display seconds in time",
     "defaultValue": false
@@ -64,6 +76,14 @@
     "messageKey": "language",
     "label": "Dato på nynorsk",
     "defaultValue": false
+  },
+  {
+    "type": "heading",
+    "defaultValue": "Support"
+  },
+  {
+    "type": "text",
+    "defaultValue": "Islet is free. If it helps you, you can <a href=\"https://buymeacoffee.com/petrepa\">buy me a coffee</a>. Thank you!"
   },
   {
     "type": "submit",

@@ -1,5 +1,5 @@
 {
-  "version": "1.0.1",
+  "version": "1.1.0",
   "author": "Peter Remøy Paulsen",
   "private": true,
   "keywords": [
@@ -20,6 +20,12 @@
           "characterRegex": "[0-9:APM ]",
           "type": "font",
           "name": "TIME_FONT_60",
+          "file": "Montserrat-Bold.ttf"
+        },
+        {
+          "characterRegex": "[0-9.\\-]",
+          "type": "font",
+          "name": "BG_FONT_64",
           "file": "Montserrat-Bold.ttf"
         }
       ]
@@ -48,6 +54,8 @@
       "colorok": 121,
       "colorhigh": 122,
       "language": 123,
+      "lighttheme": 124,
+      "largetext": 125,
       "weather_temp": 200,
       "weather_cond": 201,
       "weather_req": 202,

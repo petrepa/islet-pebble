@@ -33,12 +33,32 @@ In Pebble app → Islet → settings.
 
 | Setting | Default | Does |
 |---|---|---|
+| Light background (black text on white) | Off | Invert face. Bright glucose colours (like default green) darken by themselves so stay readable on white. |
+| Larger text | Off | Much bigger glucose, bigger age / delta / IOB / date. Time already big, stay same. |
 | Display seconds in time | Off | `HH:MM:SS`. Eat more battery. |
 | Repeat alert vibrations every 15 minutes | On | Buzz again while watch disconnected from phone |
 | Silence all vibrations | Off | No buzz ever |
 | Backlight on when charging | Off | Light stay on while charging |
 | Glucose colors | Red / green / blue | Low / in range / high colours |
 | Dato på nynorsk | Off | Date in Nynorsk |
+
+<p>
+  <img src="emery_screenshot_light.png" width="200" alt="Light background">
+  <img src="emery_screenshot_large.png" width="200" alt="Larger text">
+  <img src="emery_screenshot_light_large.png" width="200" alt="Light background and larger text">
+</p>
+
+Light background · Larger text · Both.
+
+<p>
+  <img src="emery_screenshot_light_low.png" width="200" alt="Light background, low: 3.6 mmol/L in red">
+  <img src="emery_screenshot_light.png" width="200" alt="Light background, in range: 6.1 mmol/L in darkened green">
+  <img src="emery_screenshot_light_high.png" width="200" alt="Light background, high: 12.4 mmol/L in darkened blue">
+</p>
+
+Light background, low / in range / high. Default green and blue darken on white.
+
+<img src="settings_page.png" width="300" alt="Settings page with Light background and Larger text toggles">
 
 Location permission only for weather.
 
