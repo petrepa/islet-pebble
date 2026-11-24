@@ -9,6 +9,8 @@ pebble install --emulator emery       # emulator
 pebble install --phone <PHONE_IP>     # real watch (developer connection)
 ```
 
+After adding a message key to `package.json`, run `pebble clean` first. Incremental build keep old `build/js/message_keys.json`, and Clay then fail on save with `Unknown message key 'NaN'`. Release `.pbw` always from clean build.
+
 ## Fake AndroidAPS for emulator
 
 In emulator, phone script run on your computer. `127.0.0.1:28891` = your computer. Serve test data:

@@ -18,8 +18,12 @@ Done. Watch pulls fresh data every minute.
 
 ## Docs
 
-- [Usage](docs/usage.md) — what face shows, settings, troubleshooting
+- [Usage](docs/usage.md) — what face shows, settings (light background, larger text), troubleshooting
 - [Development](docs/development.md) — build, emulator test data, message keys
+
+## Support
+
+Islet free. If it help you: [buy me a coffee](https://buymeacoffee.com/petrepa).
 
 ## Credits
 
